@@ -1,0 +1,72 @@
+# Install required libraries
+!pip install transformers datasets pandas scikit-learn torch
+
+# Import necessary libraries
+import pandas as pd
+import torch
+from transformers import AutoTokenizer, AutoModelForSequenceClassification
+from sklearn.metrics import accuracy_score, precision_score, recall_score, f1_score
+from google.colab import drive
+
+# Mount Google Drive
+drive.mount('/content/Drive')
+
+# Load the dataset
+df = pd.read_csv('/content/Drive/My Drive/IMDB Dataset.csv') 
+
+# Check the first few rows of the dataset to ensure it is loaded correctly
+print(df.head())
+
+# Load model and tokenizer
+tokenizer = AutoTokenizer.from_pretrained("cardiffnlp/twitter-roberta-base-sentiment-latest")
+model = AutoModelForSequenceClassification.from_pretrained("cardiffnlp/twitter-roberta-base-sentiment-latest")
+
+# Function to predict sentiment
+def predict_sentiment(text):
+    '''Uses a tokenizer to convert the input text into the format expected by the model.
+    The tokenizer function processes this text and converts it to tensors(multi-dimensional arrays) suitable for input to the model.
+    The return_tensors="pt" specifies that the tokenizer should return PyTorch tensors.'''
+    inputs = tokenizer(text, return_tensors="pt")
+    
+    '''Runs the model to get the output (logits) directly. 
+    The model(**inputs) passes the tokenized inputs to the model and runs inference.
+    The (.logits) accesses the raw output scores (logits) from the model.'''
+    logits = model(**inputs).logits
+    
+    '''Calculates the predicted sentiment.
+    torch.argmax(logits, dim=1) - finds the index of the maximum value in the logits tensor along the specified dimension(dim=1)which corresponds to
+                                  the predicted class(positive,negative,neutral).
+    .item() - Converts the tensor to a Python scalar value which is returned as the function's output'''
+    return torch.argmax(logits, dim=1).item()
+
+'''Predict sentiments for each review
+Applying the predict_sentiment function to the text in sentiment column and then storing the results in predicted_sentiment variable'''
+df['predicted_sentiment'] = df['sentiment'].apply(predict_sentiment)
+
+# Printing the sentiment and the predicted sentiments to check
+print(df[['sentiment', 'predicted_sentiment']].head())
+
+'''Map predictions to labels
+Labeling as 0-negative,1-neutral,2-positive'''
+label_map = {0: 'negative', 1: 'neutral', 2: 'positive'}
+# Using the label_map in predicted_sentiment to convert numerical predictions to text labels
+df['predicted_sentiment'] = df['predicted_sentiment'].map(label_map)
+
+# Convert sentiment labels to numeric
+y_true = df['sentiment'].map({'positive': 2, 'neutral': 1, 'negative': 0})
+y_pred = df['predicted_sentiment'].map({'positive': 2, 'neutral': 1, 'negative': 0})
+
+# Check the first few rows of y_true and y_pred to ensure they are correct
+print(y_true.head())
+print(y_pred.head())
+
+# Calculate metrics
+accuracy = accuracy_score(y_true, y_pred)
+precision = precision_score(y_true, y_pred, average='weighted')
+recall = recall_score(y_true, y_pred, average='weighted')
+f1 = f1_score(y_true, y_pred, average='weighted')
+
+print(f"Accuracy: {accuracy:.2f}")
+print(f"Precision: {precision:.2f}")
+print(f"Recall: {recall:.2f}")
+print(f"F1 Score: {f1:.2f}")
